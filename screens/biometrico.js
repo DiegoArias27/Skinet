@@ -1,24 +1,36 @@
-import React, {useState} from "react";
+import React, { useState, useContext } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Divider } from '@/components/ui/divider';
 import { Button, ButtonText } from '@/components/ui/button';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import themeContext from "@/theme/themeContext";
 
 export default function biometrico() {
     const navigation = useNavigation();
     const [pressed, setPressed] = useState(false);
+    const theme = useContext(themeContext);
+
+    const imagenes = {
+        dark: require('../image/black.png'),
+        light: require('../image/skinet.png')
+    };
+
+    const imagen = theme.theme === "dark" ? imagenes.dark : imagenes.light;
+
+    const fondo = theme.theme === "dark" ? "#1A1A1A" : "white";
+    const cardBg = theme.theme === "dark" ? "#1E1E1E" : "#042c50";
     return (
-        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#042c50" }} behavior={Platform.OS === 'android' ? "padding" : "height"}>
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: cardBg }} behavior={Platform.OS === 'android' ? "padding" : "height"}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={{ backgroundColor: 'white', flex: 1 }}>
+                <View style={{ backgroundColor: fondo, flex: 1 }}>
                     <View style={{ flexDirection: 'column', alignItems: 'center' }}>
-                        <Image source={require('../image/skinet.png')} style={{ width: '100%', height: 200, marginTop: '10%' }} />
+                        <Image source={imagen} style={{ width: '100%', height: 200, marginTop: '10%' }} />
                     </View>
                     <View style={{ flexDirection: 'column', alignItems: 'center' }}>
                         <Text style={{ color: '#439AB7', fontSize: 50, fontWeight: 700 }}>BIENVENIDO</Text>
                     </View>
-                    <View style={{ backgroundColor: "#042c50", height: '100%', borderTopRightRadius: 30, borderTopLeftRadius: 30, marginTop: 20, padding: 30 }}>
+                    <View style={{ backgroundColor: cardBg, height: '100%', borderTopRightRadius: 30, borderTopLeftRadius: 30, marginTop: 20, padding: 30 }}>
                         <Text style={{ color: '#ffffff', textAlign: 'center', fontSize: 35, fontWeight: 700, paddingLeft: 40, paddingRight: 40 }}>Hola Leo Velasco Arias</Text>
 
                         <View style={[styles.azul, styles.cuadro]}>
@@ -30,7 +42,7 @@ export default function biometrico() {
                             </Button>
                         </View>
                         <View style={styles.centrado}>
-                            <TouchableOpacity style={styles.lector} onPressIn={() => setPressed(true)} onPressOut={() => { setPressed(false); navigation.navigate('Principal');}}
+                            <TouchableOpacity style={styles.lector} onPressIn={() => setPressed(true)} onPressOut={() => { setPressed(false); navigation.navigate('Principal'); }}
                             >
                                 <Icon
                                     name="fingerprint"
