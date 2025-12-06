@@ -4,8 +4,36 @@ import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import * as DocumentPicker from 'expo-document-picker';
 import themeContext from "@/theme/themeContext";
+import { useRoute } from '@react-navigation/native';
+import { ref, set, get } from "firebase/database";
+import { ref as refStorage, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "@/components/config";
 
-export default function formulario() {
+export default function Formulario() {
+
+    const beneficios = {
+        LITE: {
+            dispositivos: "1 a 3",
+            precio: 350,
+            velocidad: "60Mbps"
+        },
+        BASIC: {
+            dispositivos: "3 a 5",
+            precio: 400,
+            velocidad: "100Mbps"
+        },
+        PRO: {
+            dispositivos: "5 a 7",
+            precio: 450,
+            velocidad: "150Mbps"
+        },
+        ULTRA: {
+            dispositivos: "7 a 10",
+            precio: 550,
+            velocidad: "300Mbps"
+        }
+    };
+
 
     const theme = useContext(themeContext);
 
@@ -14,134 +42,252 @@ export default function formulario() {
     const floatingBg = theme.theme === "dark" ? theme.backgroundColor : "#F6F6F6";
     const textColor = theme.color;
     const primary = theme.theme === "dark" ? "white" : "#042c50";
-    const secundary = theme.theme ==="dark" ? "black" : "white"
+    const secundary = theme.theme === "dark" ? "black" : "white"
 
     const [nombre, setNombre] = React.useState("");
     const [apellidos, setApellidos] = React.useState("");
+    const [telefono, setTelefono] = React.useState("");
+    const [email, setEmail] = React.useState("");
     const [calle, setCalle] = React.useState("");
     const [colonia, setColonia] = React.useState("");
-    const [comprobante, setNombreArchivoCom] = React.useState("");
-    const [ine, setNombreIne] = React.useState("");
+    const [comprobante, setComprobante] = React.useState(null);
+    const [ine, setIne] = React.useState(null);
 
     const inputRef = useRef();
+    const limpiarCampos = () => {
+        setNombre("");
+        setApellidos("");
+        setTelefono("");
+        setEmail("");
+        setCalle("");
+        setColonia("");
+        setComprobante("");
+        setIne("");
+    };
+    const route = useRoute();
+    const { paquete } = route.params;
 
-    const subirDocumento = async () => {
+    const validarYEnviar = async () => {
+        if (!nombre.trim() ||
+            !apellidos.trim() ||
+            !telefono.trim() ||
+            !email.trim() ||
+            !calle.trim() ||
+            !colonia.trim() ||
+            !comprobante ||
+            !ine) {
+            alert("Por favor completa todos los campos antes de enviar.");
+            return;
+        }
+
         try {
-            const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
-            if (result.assets) setNombreArchivoCom(result.assets[0].name);
-        } catch (error) { console.log(error); }
+            await guardarDatos();
+
+            // alert("Enviado correctamente");
+
+            limpiarCampos();
+
+        } catch (error) {
+            console.log("Error al enviar:", error);
+            alert("Hubo un error al enviar.");
+        }
     };
 
-    const subirIne = async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
-            if (result.assets) setNombreIne(result.assets[0].name);
-        } catch (error) { console.log(error); }
+    const subirArchivoAStorage = async (uri, ruta) => {
+        const archivo = await fetch(uri);
+        const blob = await archivo.blob();
+        const storageRef = refStorage(storage, ruta);
+        await uploadBytes(storageRef, blob);
+        return await getDownloadURL(storageRef);
     };
 
-    return (
-        <KeyboardAvoidingView 
-            style={{ flex: 1, backgroundColor: bg }} 
-            behavior={Platform.OS === 'android' ? "padding" : "height"} 
-            keyboardVerticalOffset={Platform.OS === "android" ? 80 : 0}
-        >
+    const generarId4Digitos = () => {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+    };
 
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <SafeAreaProvider>
-                    <SafeAreaView>
+    // Guardar en Firebase
+    const guardarDatos = async () => {
+        try {
+            let userId;
+            let existe = true;
 
-                        <View style={{ marginLeft: 30, marginTop: 20, marginRight: 30, flex: 1 }}>
+            // Generar ID no repetido
+            while (existe) {
+                let idTemp = generarId4Digitos();
+                const snap = await get(ref(db, users / ${ idTemp }));
+                if (!snap.exists()) {
+                    userId = idTemp;
+                    existe = false;
+                }
+            }
 
-                            <View>
-                                <View style={{ marginBottom: 10 }}>
-                                    <Text style={{ fontWeight: 700, color: textColor }}>Detalles del contacto</Text>
-                                </View>
+            // Subir imágenes a Storage
+            const ineUrl = ine ? await subirArchivoAStorage(ine, users / ${ userId } / ine.jpg) : "";
+            const comprobanteUrl = comprobante ? await subirArchivoAStorage(comprobante, users / ${ userId } / comprobante.jpg) : "";
 
-                                <View>
-                                    <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
-                                        <TouchableOpacity onPress={() => inputRef.current.focus()}>
-                                            <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Nombre</Text>
-                                        </TouchableOpacity>
-                                        <TextInput ref={inputRef} style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setNombre} value={nombre} />
-                                    </View>
+            // INFO DEL PLAN
+            const planSeleccionado = beneficios[paquete];  // ← obtiene beneficios según el paquete
 
-                                    <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
-                                        <TouchableOpacity onPress={() => inputRef.current.focus()}>
-                                            <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Apellidos</Text>
-                                        </TouchableOpacity>
-                                        <TextInput ref={inputRef} style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setApellidos} value={apellidos} />
-                                    </View>
-                                </View>
+            // Crear ID único para cada plan
+            const planId = Date.now().toString();
 
-                                <View style={{ marginBottom: 10 }}>
-                                    <Text style={{ fontWeight: 700, color: textColor }}>Dirección</Text>
-                                </View>
+            const userData = {
+                active: true,
+                name: ${ nombre } ${ apellidos },
+                phone: telefono,
+                email: email,
+                address: ${ calle }, ${ colonia },
+                ine: ineUrl,
+                comprobante: comprobanteUrl,
+                createdAt: new Date().toISOString(),
+                    plans: {
+                [planId]: {
+                    nombrePaquete: paquete,
+                    ...planSeleccionado
+}
+            }
+        };
 
-                                <View>
-                                    <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
-                                        <TouchableOpacity onPress={() => inputRef.current.focus()}>
-                                            <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Calle y Número</Text>
-                                        </TouchableOpacity>
-                                        <TextInput ref={inputRef} style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setCalle} value={calle} />
-                                    </View>
+// Guardar usuario
+await set(ref(db, users / ${ userId }), userData);
 
-                                    <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
-                                        <TouchableOpacity onPress={() => inputRef.current.focus()}>
-                                            <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Colonia y C.P.</Text>
-                                        </TouchableOpacity>
-                                        <TextInput ref={inputRef} style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setColonia} value={colonia} />
-                                    </View>
-                                </View>
+alert(Usuario creado con ID: ${ userId });
 
-                                <View style={{ marginBottom: 10 }}>
-                                    <Text style={{ fontWeight: 700, color: textColor }}>Detalles del contacto</Text>
-                                </View>
+    } catch (error) {
+    console.log(error);
+    alert("Error al guardar");
+}
+};
 
-                                <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
-                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>INE</Text>
+const subirDocumento = async () => {
+    try {
+        const result = await DocumentPicker.getDocumentAsync({ type: "/", copyToCacheDirectory: true });
+        if (result.assets) setComprobante(result.assets[0].uri);
+    } catch (error) { console.log(error); }
+};
 
-                                    <TouchableOpacity onPress={subirIne} style={{ position: 'absolute', right: 10 }}>
-                                        <Icon name="paperclip" size={28} color={primary} />
-                                    </TouchableOpacity>
+const subirIne = async () => {
+    try {
+        const result = await DocumentPicker.getDocumentAsync({ type: "/", copyToCacheDirectory: true });
+        if (result.assets) setIne(result.assets[0].uri);
+    } catch (error) { console.log(error); }
+};
 
-                                    <TextInput
-                                        style={{ height: '100%', fontSize: 16, paddingLeft: 20, paddingRight: 50, color: textColor }}
-                                        value={ine}
-                                        editable={false}
-                                        placeholder="Selecciona un archivo"
-                                        placeholderTextColor={theme.theme === "dark" ? "#999" : "#666"}
-                                    />
-                                </View>
+return (
+    <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: bg }}
+        behavior={Platform.OS === 'android' ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "android" ? 80 : 0}
+    >
 
-                                <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 30 }}>
-                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>COMPROBANTE DE DOMICILIO</Text>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+            <SafeAreaProvider>
+                <SafeAreaView>
 
-                                    <TouchableOpacity onPress={subirDocumento} style={{ position: 'absolute', right: 10 }}>
-                                        <Icon name="paperclip" size={28} color={primary} />
-                                    </TouchableOpacity>
+                    <View style={{ marginLeft: 30, marginTop: 20, marginRight: 30, flex: 1 }}>
 
-                                    <TextInput
-                                        style={{ height: '100%', fontSize: 16, paddingLeft: 20, paddingRight: 50, color: textColor }}
-                                        value={comprobante}
-                                        editable={false}
-                                        placeholder="Selecciona un archivo"
-                                        placeholderTextColor={theme.theme === "dark" ? "#999" : "#666"}
-                                    />
-                                </View>
+                        <View>
 
-                                <TouchableOpacity onPress={() => alert('Enviado')}>
-                                    <Text style={{ fontSize: 16, fontWeight: 700, color: secundary , backgroundColor: primary, padding: 10, textAlign: 'center', borderRadius: 10 }}>
-                                        Enviar
-                                    </Text>
-                                </TouchableOpacity>
-
+                            {/* Campos de datos */}
+                            <View style={{ marginBottom: 10 }}>
+                                <Text style={{ fontWeight: 700, color: textColor }}>Detalles del contacto</Text>
                             </View>
+
+                            {/* Nombre */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity onPress={() => inputRef.current?.focus()}>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Nombre</Text>
+                                </TouchableOpacity>
+                                <TextInput style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setNombre} value={nombre} />
+                            </View>
+
+                            {/* Apellidos */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity onPress={() => inputRef.current?.focus()}>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Apellidos</Text>
+                                </TouchableOpacity>
+                                <TextInput style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setApellidos} value={apellidos} />
+                            </View>
+
+                            {/* Teléfono */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity onPress={() => inputRef.current?.focus()}>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Telefono</Text>
+                                </TouchableOpacity>
+                                <TextInput keyboardType="phone-pad" style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setTelefono} value={telefono} />
+                            </View>
+
+                            {/* Email */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity onPress={() => inputRef.current?.focus()}>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Email</Text>
+                                </TouchableOpacity>
+                                <TextInput keyboardType="email-address" style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setEmail} value={email} />
+                            </View>
+
+                            {/* Dirección */}
+                            <View style={{ marginBottom: 10 }}>
+                                <Text style={{ fontWeight: 700, color: textColor }}>Dirección</Text>
+                            </View>
+
+                            {/* Calle */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Calle y Número</Text>
+                                </TouchableOpacity>
+                                <TextInput style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setCalle} value={calle} />
+                            </View>
+
+                            {/* Colonia */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <TouchableOpacity>
+                                    <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>Colonia y C.P.</Text>
+                                </TouchableOpacity>
+                                <TextInput style={{ height: '100%', fontSize: 16, paddingLeft: 20, color: textColor }} onChangeText={setColonia} value={colonia} />
+                            </View>
+
+                            {/* INE */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 20 }}>
+                                <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>INE</Text>
+                                <TouchableOpacity onPress={subirIne} style={{ position: 'absolute', right: 10 }}>
+                                    <Icon name="paperclip" size={28} color={primary} />
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={{ height: '100%', fontSize: 16, paddingLeft: 20, paddingRight: 50, color: textColor }}
+                                    value={ine ? "Archivo seleccionado ✔" : ""}
+                                    editable={false}
+                                    placeholder="Selecciona un archivo"
+                                />
+                            </View>
+
+                            {/* Comprobante */}
+                            <View style={{ position: 'relative', justifyContent: 'center', borderColor: boxBorder, borderWidth: 2, borderRadius: 10, height: 50, marginBottom: 30 }}>
+                                <Text style={{ position: 'absolute', top: -12, left: 10, paddingHorizontal: 5, fontSize: 12, color: primary, backgroundColor: floatingBg }}>COMPROBANTE DE DOMICILIO</Text>
+                                <TouchableOpacity onPress={subirDocumento} style={{ position: 'absolute', right: 10 }}>
+                                    <Icon name="paperclip" size={28} color={primary} />
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={{ height: '100%', fontSize: 16, paddingLeft: 20, paddingRight: 50, color: textColor }}
+                                    value={comprobante ? "Archivo seleccionado ✔" : ""}
+                                    editable={false}
+                                    placeholder="Selecciona un archivo"
+                                />
+                            </View>
+
+                            {/* BOTÓN ENVIAR */}
+                            <TouchableOpacity onPress={validarYEnviar}>
+                                <Text style={{ fontSize: 16, fontWeight: 700, color: secundary, backgroundColor: primary, padding: 10, textAlign: 'center', borderRadius: 10 }}>
+                                    Enviar
+                                </Text>
+                            </TouchableOpacity>
 
                         </View>
 
-                    </SafeAreaView>
-                </SafeAreaProvider>
-            </ScrollView>
-        </KeyboardAvoidingView>
-    );
+                    </View>
+
+                </SafeAreaView>
+            </SafeAreaProvider>
+        </ScrollView>
+    </KeyboardAvoidingView>
+);
 }
